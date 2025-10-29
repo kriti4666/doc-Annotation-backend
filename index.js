@@ -11,11 +11,25 @@ import Document from './models/Document.js';
 const app = express();
 const httpServer = createServer(app);
 
-app.use(cors({
-  origin: "https://radiant-puffpuff-b52614.netlify.app",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true
-}));
+const allowedOrigins = [
+  "http://localhost:5173", // local frontend (Vite dev)
+  "https://radiant-puffpuff-b52614.netlify.app" // deployed frontend
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+  })
+);
 
 app.use(bodyParser.json({ extended: true }));
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -23,10 +37,14 @@ app.use('/', Route);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "https://radiant-puffpuff-b52614.netlify.app",
+    origin: [
+      "http://localhost:5173",
+      "https://radiant-puffpuff-b52614.netlify.app"
+    ],
     methods: ["GET", "POST"]
   }
 });
+
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
