@@ -12,7 +12,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: "http://localhost:5173",
+        origin: "https://doc-annotation-backend.onrender.com/",
         methods: ["GET", "POST"]
     }
 });
@@ -82,5 +82,6 @@ Connection();
 
 const PORT = 8000;
 httpServer.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    // console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on https://doc-annotation-backend.onrender.com/`);
 });
