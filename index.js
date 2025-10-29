@@ -10,78 +10,71 @@ import Document from './models/Document.js';
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-    cors: {
-        origin: "https://doc-annotation-backend.onrender.com/",
-        methods: ["GET", "POST"]
-    }
-});
 
-app.use(cors());
-app.use(bodyParser.json({extended: true}));
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(cors({
+  origin: "https://radiant-puffpuff-b52614.netlify.app",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
+
+app.use(bodyParser.json({ extended: true }));
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/', Route);
 
-// Socket.io for real-time collaboration
+const io = new Server(httpServer, {
+  cors: {
+    origin: "https://radiant-puffpuff-b52614.netlify.app",
+    methods: ["GET", "POST"]
+  }
+});
+
 io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
+  console.log('User connected:', socket.id);
 
-    // Join a document room
-    socket.on('join-document', (documentId) => {
-        socket.join(documentId);
-        console.log(`User ${socket.id} joined document ${documentId}`);
-    });
+  socket.on('join-document', (documentId) => {
+    socket.join(documentId);
+    console.log(`User ${socket.id} joined document ${documentId}`);
+  });
 
-    // Leave a document room
-    socket.on('leave-document', (documentId) => {
-        socket.leave(documentId);
-        console.log(`User ${socket.id} left document ${documentId}`);
-    });
+  socket.on('leave-document', (documentId) => {
+    socket.leave(documentId);
+    console.log(`User ${socket.id} left document ${documentId}`);
+  });
 
-    // Handle new annotation
-    socket.on('new-annotation', async (annotationData) => {
-        try {
-            // Create annotation in database
-            const annotation = await Annotation.create(annotationData);
-            
-            // Update document annotation count
-            await Document.findByIdAndUpdate(annotationData.documentId, {
-                $inc: { annotationCount: 1 }
-            });
+  socket.on('new-annotation', async (annotationData) => {
+    try {
+      const annotation = await Annotation.create(annotationData);
+      await Document.findByIdAndUpdate(annotationData.documentId, {
+        $inc: { annotationCount: 1 }
+      });
+      io.to(annotationData.documentId).emit('annotation-added', annotation);
+    } catch (error) {
+      socket.emit('annotation-error', { message: error.message });
+    }
+  });
 
-            // Broadcast to all users in the document room
-            io.to(annotationData.documentId).emit('annotation-added', annotation);
-        } catch (error) {
-            socket.emit('annotation-error', { message: error.message });
-        }
-    });
+  socket.on('delete-annotation', async ({ annotationId, documentId }) => {
+    try {
+      const annotation = await Annotation.findByIdAndDelete(annotationId);
+      if (annotation) {
+        await Document.findByIdAndUpdate(documentId, {
+          $inc: { annotationCount: -1 }
+        });
+        io.to(documentId).emit('annotation-deleted', { annotationId });
+      }
+    } catch (error) {
+      socket.emit('annotation-error', { message: error.message });
+    }
+  });
 
-    // Handle annotation deletion
-    socket.on('delete-annotation', async ({ annotationId, documentId }) => {
-        try {
-            const annotation = await Annotation.findByIdAndDelete(annotationId);
-            
-            if (annotation) {
-                await Document.findByIdAndUpdate(documentId, {
-                    $inc: { annotationCount: -1 }
-                });
-                
-                io.to(documentId).emit('annotation-deleted', { annotationId });
-            }
-        } catch (error) {
-            socket.emit('annotation-error', { message: error.message });
-        }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-    });
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
 });
 
 Connection();
 
-const PORT = 8000;
+const PORT = process.env.PORT || 8000;
 httpServer.listen(PORT, () => {
-    // console.log(`Server is running on http://localhost:${PORT}`);
-    console.log(`Server is running on https://doc-annotation-backend.onrender.com/`);
+  console.log(`Server running on port ${PORT}`);
 });
